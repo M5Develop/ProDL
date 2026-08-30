@@ -12,4 +12,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build Docker image
-        run: docker build ./backend -t prodl-backend
+        run: docker build ./apps/backend -t prodl-backend
