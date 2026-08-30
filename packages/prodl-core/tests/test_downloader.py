@@ -45,7 +45,27 @@ async def test_get_info_mock():
 
 
 @pytest.mark.asyncio
-async def test_get_stream_info_mock():
+async def test_get_stream_info_requested_downloads():
+    mock_info = {
+        "requested_downloads": [{"url": "https://cdn.example.com/req.mp4"}],
+        "url": "https://cdn.example.com/fallback.mp4",
+        "title": "Stream Title",
+        "ext": "mp4",
+        "filesize": 12345,
+    }
+
+    with patch("yt_dlp.YoutubeDL") as MockYDL:
+        instance = MockYDL.return_value.__enter__.return_value
+        instance.extract_info.return_value = mock_info
+
+        opts = DownloadOptions(url="https://example.com/video")
+        stream_info = await ProDLDownloader.get_stream_info(opts)
+        assert stream_info.url == "https://cdn.example.com/req.mp4"
+        assert stream_info.title == "Stream Title"
+
+
+@pytest.mark.asyncio
+async def test_get_stream_info_fallback():
     mock_info = {
         "url": "https://cdn.example.com/direct.mp4",
         "title": "Stream Title",
@@ -76,7 +96,13 @@ async def test_download_mock(tmp_path):
         "title": "Downloaded Title",
         "ext": "mp4",
         "filesize": 13,
+        "requested_downloads": [
+            {"filepath": filepath}
+        ]
     }
+
+    def my_hook(d):
+        pass
 
     with patch("yt_dlp.YoutubeDL") as MockYDL:
         instance = MockYDL.return_value.__enter__.return_value
@@ -89,9 +115,16 @@ async def test_download_mock(tmp_path):
             thumbnail=True,
             sponsorblock=True,
             sb_action="cut",
+            progress_hook=my_hook,
+            max_filesize="50M",
         )
         res = await ProDLDownloader.download(opts)
         assert res.title == "Downloaded Title"
         assert res.filename == f"{mock_id}.mp4"
         assert res.filepath == filepath
         assert res.filesize == 13
+
+        # Verify ydl_opts received options
+        called_opts = MockYDL.call_args[0][0]
+        assert called_opts.get("progress_hooks") == [my_hook]
+        assert called_opts.get("max_filesize") == "50M"
