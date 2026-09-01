@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Callable, Literal
 from pydantic import BaseModel
 
 
@@ -31,6 +31,16 @@ class VideoInfo(BaseModel):
 
 
 class DownloadOptions(BaseModel):
+    """
+    Options for downloading media.
+
+    progress_hook signature called by yt-dlp:
+        def hook(d: dict):
+            d['status']        # 'downloading' | 'finished' | 'error'
+            d['_percent_str']  # '45.2%'
+            d['_speed_str']    # '1.23MiB/s'
+            d['eta']           # seconds remaining (int)
+    """
     url: str
     format_id: str = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best"
     audio_only: bool = False
@@ -52,6 +62,12 @@ class DownloadOptions(BaseModel):
 
     # Output
     output_dir: str = "/tmp/prodl_downloads"
+
+    progress_hook: Callable | None = None
+    max_filesize: str | None = None
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class DownloadResult(BaseModel):

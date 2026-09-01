@@ -1,5 +1,4 @@
 import asyncio
-import glob
 import os
 from typing import Any
 import yt_dlp
@@ -125,14 +124,13 @@ class ProDLDownloader:
                 if info is None:
                     raise ValueError(f"Could not extract stream info for URL: {opts.url}")
 
-                direct_url = info.get("url")
-                if not direct_url:
-                    req_dl = info.get("requested_downloads")
-                    if req_dl and isinstance(req_dl, list) and len(req_dl) > 0:
-                        direct_url = req_dl[0].get("url")
-
-                if not direct_url:
-                    raise ValueError(f"Direct stream URL not found for: {opts.url}")
+                # Try requested_downloads first (most reliable)
+                requested = info.get('requested_downloads')
+                if requested and len(requested) > 0:
+                    direct_url = requested[0]['url']
+                else:
+                    # Fallback for single-format responses
+                    direct_url = info['url']
 
                 filesize = info.get("filesize") or info.get("filesize_approx")
 
@@ -190,29 +188,20 @@ class ProDLDownloader:
             elif opts.sb_action == "mark":
                 ydl_opts['sponsorblock_chapter_title'] = opts.sb_categories
 
+        if opts.progress_hook:
+            ydl_opts['progress_hooks'] = [opts.progress_hook]
+
+        if opts.max_filesize:
+            ydl_opts['max_filesize'] = opts.max_filesize
+
         def _download() -> DownloadResult:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(opts.url, download=True)
                 if info is None:
                     raise ValueError(f"Download failed for URL: {opts.url}")
 
-                video_id = info.get("id")
                 title = str(info.get("title") or "")
-
-                # Find output file by glob pattern
-                matching_files = glob.glob(f"{opts.output_dir}/{video_id}.*")
-
-                # Exclude temporary download files or info json if any
-                matching_files = [
-                    f for f in matching_files
-                    if not f.endswith(".part") and not f.endswith(".info.json") and not f.endswith(".ytdl")
-                ]
-
-                if matching_files:
-                    filepath = matching_files[0]
-                else:
-                    # Fallback to requested download filename or expected filepath
-                    filepath = f"{opts.output_dir}/{video_id}.mp4"
+                filepath = info['requested_downloads'][0]['filepath']
 
                 filename = os.path.basename(filepath)
                 ext = os.path.splitext(filepath)[1].lstrip(".")
